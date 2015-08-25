@@ -1,0 +1,195 @@
+{% load i18n utiltags %}
+{% extends "zipbooks/base.html" %}
+{% block css %}
+<link href="/site_media/css/tabs.css" rel="stylesheet" type="text/css" />
+<link href="/site_media/css/tabs_ie.css" rel="stylesheet" type="text/css" />
+{% endblock %}
+{% block js %}
+<script type="text/javascript" src="/site_media/js/jquery.formbuilder.js"></script>
+<script type="text/javascript" src="/site_media/js/jquery.jform.js"></script>
+<script type="text/javascript" src="/site_media/js/jquery.tabs.pack.js"></script>
+<script type="text/javascript">
+createbookslist = function(data, o){
+    var table = $('<table border="0" width="99%"><tbody></tbody></table>');
+    var t = table.find('tbody');
+    var tr = null;
+    var i = 0;
+    $.each(data, function(){
+        if(i%3 == 0){
+            tr = $('<tr></tr>').appendTo(t);
+        }
+        this.width = this.finished /100 * 40;
+        this.img = this.finished==100?"/site_media/img/finish.jpg":"/site_media/img/unfinish.jpg";
+        tr.append('<td width="40"><img src=$img title="$finished%" width="$width" height="5" align="absmiddle"/></td><td width="30%"><a href="download/$id/"><img src="/site_media/img/save.png" title="Download in multi files" align="absmiddle"/></a> <a href="download/$id/?onefile=true"><img src="/site_media/img/save_one.png" title="Download in one file" align="absmiddle"/></a> <a class="refresh" href="refresh/$id/"><img src="/site_media/img/begin.png" title="Refresh" align="absmiddle"/></a> <a class="refresh" href="add/$id/"><img src="/site_media/img/download.gif" title="Get again" align="absmiddle"/></a> <a href="$url">$title</a></td>'.template(this));
+        var _id = this.id;
+        i++;
+    });
+    while(i%3!=0){
+        tr.append('<td width="40">&nbsp;</td><td width="30%">&nbsp;</td>');
+        i++;
+    }
+    table.find('a.refresh').click(function(){
+        $('.tabs').triggerTab(3);
+        $.post(this.href);
+        return false;
+    });
+    $(o).empty().append(table);
+};
+
+var monitor_flag = false;
+createmonitor = function(data, o){
+    var table = $('<table border="0" width="99%"><tbody></tbody></table>');
+    var t = table.find('tbody');
+    var tr = null;
+    var i = 0;
+    $.each(data, function(){
+        if(i%3 == 0){
+            tr = $('<tr></tr>').appendTo(t);
+        }
+        this.width = this.finished /100 * 40;
+        if(this.status == 0){
+            this.status_img = '/site_media/img/waiting.gif';
+            this.status_msg = '等候入理';
+        }
+        else if(this.status == 1){
+            this.status_img = '/site_media/img/ajax_loading.gif';
+            this.status_msg = '正在处理...';
+        }
+        else{
+            this.status_img = '/site_media/img/done.gif';
+            this.status_msg = '处理完毕';
+        }
+        this.img = this.finished==100?"/site_media/img/finish.jpg":"/site_media/img/unfinish.jpg";
+        tr.append('<td width="40"><img src=$img title="$finished%" width="$width" height="5" align="absmiddle"/></td><td width="30%"><img src="$status_img" title="$status_msg" align="absmiddle"/> <a href="$url">$title</a></td>'.template(this));
+        i++;
+    });
+    while(i%3!=0){
+        tr.append('<td width="40">&nbsp;</td><td width="30%">&nbsp;</td>');
+        i++;
+    }
+    $(o).empty().append(table);
+};
+
+
+process_booklist = function(data){
+    var data = data.evalJson().data;
+    createbookslist(data[2], '#books');
+    $('#pages').empty().paginate('booklist/', data[0], data[1]).append('<br style="clear:both;"/>');
+    $('#pages a').click(function(){
+        var href = this.href;
+        $.post(href, process_booklist);
+        return false;
+    });
+};
+
+process_monitor = function(data){
+    var data = data.evalJson().data;
+    createmonitor(data, '#monitorlist');
+    if(monitor_flag){
+        setTimeout(function(){
+                        $.post('monitor/', process_monitor);
+                }, 1000);
+    }
+};
+
+tab_click = function(t, d, h){
+    if(d.id == 'booklist'){
+        $.post('booklist/', process_booklist);
+    }
+    if(d.id == 'monitor'){
+        monitor_flag = true;
+        $.post('monitor/', process_monitor);
+    }
+};
+
+tab_hide = function(t, d, h){
+    if(h && h.id == 'monitor'){
+        monitor_flag = false;
+    }
+};
+
+on_success_finish = function(e, r){
+    $('.tabs').triggerTab(3);
+};
+
+on_success_finish_search = function(e, r){
+    $('#pages').empty();
+    var data = r.data;
+    createbookslist(data, '#books');
+};
+
+$(document).ready(function (){
+    $('.tabs').tabs({onClick:tab_click, onHide:tab_hide});
+    $('.tabs').triggerTab(2);
+
+	$('#form_addbook').jform({on_success_finish:on_success_finish, delaytime:3000, onbegin:function(e){
+        $('.tabs').triggerTab(3);
+    }});
+	$('#form_search').jform({on_success_finish:on_success_finish_search,
+        messageid:'#search_msg', delaytime:3000});
+
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<center>
+<img src="/site_media/img/zipbook.jpg"/>
+<div id="addbook">
+<div id="message"></div>
+<form action="add/" id="form_addbook">
+<p>输入想下载书的目录URL <input name="url" size="55" class="field"/> <input type="submit" value="执行"/></p>
+</form>
+</div>
+</center>
+<div class="tabs">
+   <ul class="anchors">
+      <li><a href="#whatsnew">最新更新</a></li>
+      <li><a href="#booklist">已有书目</a></li>
+      <li><a href="#monitor">任务列表</a></li>
+      <li><a href="#sites">支持站点</a></li>
+      <li><a href="#about">关于本站</a></li>
+   </ul>
+   <div id="whatsnew" class="fragment">
+      本项目还在开发中，正在增加更多的站点支持，如果你感兴趣请关注本站。如果你有什么建议也请与我联系。当然我不一定会有能力实现你的要求。我的邮箱： limodou at gmail.com。
+    <br />
+    <br />
+    如果你希望了解本项目的源码，可以看[关于本站]的介绍。本项目为开源项目。
+    <br />
+    <br />
+    <b>2007/06/12</b> 增加独立程序来运行抓取处理。并且可以在settings中设置数据存储方式是'db'为使用数据库，'file'为文件系统。增加任务监控功能。
+    <br />
+    <br />
+    <b>2007/06/22</b>在settings.py中增加OUTPUT_ENCODING选项，可以用来控制生成的zip文件的内容是何种编码，缺省为gb18030。并且在plugins的__init__.py中，对于'www.'开头的域名应去掉。
+    <br />
+   </div>
+   <div id="booklist" class="fragment">
+        <center><div id="search_msg"></div>
+        <form action="search/" id="form_search">
+        输入要查找的书名 <input type="text" size="30" name="search" class="field"/> <input type="submit" value="查询"/>
+        </form></center>
+        <div id="books"></div>
+        <div id="pages"></div>
+   </div>
+   <div id="monitor" class="fragment">
+        <div id="monitorlist"></div>
+   </div>
+   <div id="sites" class="fragment">
+      {% pycall plugins.show_sites(6) %}
+   </div>
+   <div id="about" class="fragment">
+      本站为开源项目，代码在 <a href="http://code.google.com/p/zipbook/">ZipBook</a> 可以找到。它是使用Django+jQuery开发的。项目遵守BSD版权发布。
+      <br />
+      <br />
+      安装源码需要使用pycURL模块，可以在网上找到。
+      <br />
+      <br />
+      作者：limodou <a href="http://www.donews.net/limodou">访问Blog</a>
+   </div>
+</div>
+
+<center>
+<br />
+<div>©limodou</div>
+</center>
+{% endblock %}
